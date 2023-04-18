@@ -8,6 +8,7 @@ use actix_web::{
 use git2::Repository;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+use std::process::{Command, Output, Stdio};
 use tracing_actix_web::TracingLogger;
 
 use tracing::log::*;
@@ -84,26 +85,57 @@ async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_we
     Ok(HttpResponse::Ok().body("forsen"))
 }
 
-async fn start_build(build_dir: &str, repo_full_name: &str) -> anyhow::Result<()> {
+#[tracing::instrument(skip())]
+fn run_command(command: &str) -> anyhow::Result<()> {
+    let output = Command::new("sh")
+        .arg("-c")
+        .stderr(Stdio::piped())
+        .arg(command)
+        .output()?;
+
+    let stderr = String::from_utf8(output.stderr)?;
+    let stdout = String::from_utf8(output.stdout)?;
+
+    for l in stderr.lines() {
+        info!("stderr: {l}");
+    }
+
+    for l in stdout.lines() {
+        info!("stdout: {l}");
+    }
+
+    Ok(())
+}
+
+async fn start_build(clone_dir_str: &str, repo_full_name: &str) -> anyhow::Result<()> {
+    let clone_dir = std::path::Path::new(clone_dir_str);
     let url = format!("https://github.com/{repo_full_name}");
 
-    if let Err(e) = std::fs::remove_dir_all(build_dir) {
+    if let Err(e) = std::fs::remove_dir_all(clone_dir) {
         // Don't error out if the directory we want to delete doesn't exist
         if e.kind() != std::io::ErrorKind::NotFound {
             return Err(anyhow::anyhow!(e));
         }
     }
 
-    std::fs::create_dir_all(build_dir)?;
+    std::fs::create_dir_all(clone_dir)?;
 
-    let repo = Repository::clone(&url, build_dir)?;
+    let repo = Repository::clone(&url, clone_dir)?;
 
-    info!("Cloned to {build_dir}");
+    info!("Cloned to {clone_dir:?}");
 
     for mut submodule in repo.submodules()? {
         info!("Cloning submodule {:?}", submodule.name());
         submodule.update(true, None)?;
     }
+
+    // Build chatterino 4Head
+    let build_dir = clone_dir.join("build");
+    std::fs::create_dir_all(&build_dir)?;
+    std::env::set_current_dir(&build_dir)?;
+
+    run_command("cmake ..")?;
+    run_command("make -j8")?;
 
     Ok(())
 }
