@@ -5,6 +5,7 @@ use actix_web::{
     web::{self, Bytes},
     App, HttpRequest, HttpResponse, HttpServer,
 };
+use git2::Repository;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use tracing_actix_web::TracingLogger;
@@ -84,13 +85,7 @@ async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_we
 }
 
 async fn start_build(build_dir: &str, repo_full_name: &str) -> anyhow::Result<()> {
-    let url = gix::url::parse(
-        format!("https://github.com/{repo_full_name}")
-            .as_str()
-            .into(),
-    )?;
-
-    info!("asd {url:?}");
+    let url = format!("https://github.com/{repo_full_name}");
 
     if let Err(e) = std::fs::remove_dir_all(build_dir) {
         // Don't error out if the directory we want to delete doesn't exist
@@ -101,38 +96,14 @@ async fn start_build(build_dir: &str, repo_full_name: &str) -> anyhow::Result<()
 
     std::fs::create_dir_all(build_dir)?;
 
-    let mut prepare_clone = gix::prepare_clone(url, build_dir)?;
+    let repo = Repository::clone(&url, build_dir)?;
 
-    let (mut prepare_checkout, _) = prepare_clone
-        .fetch_then_checkout(gix::progress::Discard, &gix::interrupt::IS_INTERRUPTED)?;
+    info!("Cloned to {build_dir}");
 
-    println!(
-        "Checking out into {:?} ...",
-        prepare_checkout.repo().work_dir().expect("should be there")
-    );
-
-    let (repo, _) =
-        prepare_checkout.main_worktree(gix::progress::Discard, &gix::interrupt::IS_INTERRUPTED)?;
-    println!(
-        "Repo cloned into {:?}",
-        repo.work_dir().expect("directory pre-created")
-    );
-
-    let remote = repo
-        .find_default_remote(gix::remote::Direction::Fetch)
-        .expect("always present after clone")?;
-
-    println!(
-        "Default remote: {} -> {}",
-        remote
-            .name()
-            .expect("default remote is always named")
-            .as_bstr(),
-        remote
-            .url(gix::remote::Direction::Fetch)
-            .expect("should be the remote URL")
-            .to_bstring(),
-    );
+    for mut submodule in repo.submodules()? {
+        info!("Cloning submodule {:?}", submodule.name());
+        submodule.update(true, None)?;
+    }
 
     Ok(())
 }
@@ -142,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     // start build
-    start_build("/foo/bar/baz", "Chatterino/chatterino2").await?;
+    start_build("/tmp/artifact-builder", "Chatterino/chatterino2").await?;
 
     /*
     HttpServer::new(|| {

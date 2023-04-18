@@ -10,7 +10,7 @@ actix = "0.13.0"
 actix-web = "4.3.1"
 anyhow = "1.0.70"
 digest = "0.10.6"
-gix = { version = "0.43.1", features = ["blocking-network-client", "blocking-http-transport-reqwest-rust-tls"] }
+git2 = "0.17.1"
 hex = "0.4.3"
 hmac = "0.12.1"
 serde = { version = "1.0.160", features = ["derive"] }
