@@ -5,11 +5,18 @@ use actix_web::{
     web::{self, Bytes},
     App, HttpRequest, HttpResponse, HttpServer,
 };
+use anyhow::anyhow;
 use git2::Repository;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, ExitStatus, Output, Stdio};
+use tokio_stream::StreamExt;
 use tracing_actix_web::TracingLogger;
+
+use tokio::{
+    io::{AsyncBufRead, AsyncBufReadExt, BufReader},
+    process::Command as TokioCommand,
+};
 
 use tracing::log::*;
 
@@ -86,25 +93,50 @@ async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_we
 }
 
 #[tracing::instrument(skip())]
-fn run_command(command: &str) -> anyhow::Result<()> {
-    let output = Command::new("sh")
+async fn run_command(command: &str) -> anyhow::Result<()> {
+    let mut child = TokioCommand::new("sh")
         .arg("-c")
-        .stderr(Stdio::piped())
         .arg(command)
-        .output()?;
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
 
-    let stderr = String::from_utf8(output.stderr)?;
-    let stdout = String::from_utf8(output.stdout)?;
+    let stdout = child.stdout.take().unwrap();
+    let mut stdout_reader = BufReader::new(stdout).lines();
+    let mut stdout_reader_stream = tokio_stream::wrappers::LinesStream::new(stdout_reader);
 
-    for l in stderr.lines() {
-        info!("stderr: {l}");
+    let stderr = child.stderr.take().unwrap();
+    let mut stderr_reader = BufReader::new(stderr).lines();
+    let mut stderr_reader_stream = tokio_stream::wrappers::LinesStream::new(stderr_reader);
+
+    let handle: tokio::task::JoinHandle<Result<ExitStatus, std::io::Error>> =
+        tokio::spawn(async move { child.wait().await });
+
+    loop {
+        tokio::select! {
+            Some(Ok(line)) = stdout_reader_stream.next() => {
+                info!("stdout: {line:?}");
+            }
+            Some(Ok(line)) = stderr_reader_stream.next() => {
+                info!("stderr: {line:?}");
+            }
+            else => {
+                break;
+            }
+        }
     }
 
-    for l in stdout.lines() {
-        info!("stdout: {l}");
-    }
+    let status = handle.await??;
 
-    Ok(())
+    if let Some(code) = status.code() {
+        if code == 0 {
+            Ok(())
+        } else {
+            Err(anyhow!("Process exited with status {code}"))
+        }
+    } else {
+        Err(anyhow!("Process exited without a status code?"))
+    }
 }
 
 async fn start_build(clone_dir_str: &str, repo_full_name: &str) -> anyhow::Result<()> {
@@ -134,8 +166,13 @@ async fn start_build(clone_dir_str: &str, repo_full_name: &str) -> anyhow::Resul
     std::fs::create_dir_all(&build_dir)?;
     std::env::set_current_dir(&build_dir)?;
 
-    run_command("cmake ..")?;
-    run_command("make -j8")?;
+    let qt_version = "asd";
+
+    run_command("cmake ..").await?;
+    run_command("make -j8").await?;
+    run_command(&format!("../.CI/CreateDMG.sh {qt_version}")).await?;
+
+    // TODO: Upload DMG
 
     Ok(())
 }
