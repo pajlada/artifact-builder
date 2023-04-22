@@ -89,6 +89,19 @@ async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_we
 
     tracing::info!("make build job");
 
+    // TODO: specify commit
+    tokio::spawn(async {
+        match start_build("/tmp/artifact-builder", "Chatterino/chatterino2").await {
+            Ok(_) => {
+                info!("Finished building!");
+            }
+
+            Err(e) => {
+                info!("Building failed: {e}");
+            }
+        }
+    });
+
     Ok(HttpResponse::Ok().body("forsen"))
 }
 
@@ -182,9 +195,8 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     // start build
-    start_build("/tmp/artifact-builder", "Chatterino/chatterino2").await?;
+    // start_build("/tmp/artifact-builder", "Chatterino/chatterino2").await?;
 
-    /*
     HttpServer::new(|| {
         let tracing_logger = TracingLogger::<CustomRootSpanBuilder>::new();
         App::new()
@@ -195,7 +207,6 @@ async fn main() -> anyhow::Result<()> {
     .bind("127.0.0.1:8000")?
     .run()
     .await?;
-    */
 
     Ok(())
 }
