@@ -166,7 +166,7 @@ async fn start_build(clone_dir_str: &str, repo_full_name: &str) -> anyhow::Resul
     std::fs::create_dir_all(&build_dir)?;
     std::env::set_current_dir(&build_dir)?;
 
-    let qt_version = "asd";
+    let qt_version = "5.15.8";
 
     run_command("cmake ..").await?;
     run_command("make -j8").await?;
