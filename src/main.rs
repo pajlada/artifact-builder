@@ -33,8 +33,6 @@ use crate::{
     span::CustomRootSpanBuilder,
 };
 
-const VERIFY_GITHUB_SIGNATURE: bool = true;
-
 const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
 
 const WEBHOOK_SECRET: &[u8] = "penis123".as_bytes();
@@ -129,8 +127,9 @@ async fn new_build(
     req: HttpRequest,
     bytes: Bytes,
     github_client: Data<reqwest::Client>,
+    cfg: Data<config::Config>,
 ) -> actix_web::Result<actix_web::HttpResponse> {
-    if VERIFY_GITHUB_SIGNATURE {
+    if cfg.github.verify_signature {
         let signature = get_hub_signature(req.headers().get("x-hub-signature-256"))?;
 
         validate_hub_signature(signature, &bytes, WEBHOOK_SECRET)?;
@@ -329,7 +328,7 @@ fn build_github_client(cfg: &config::GithubConfig) -> anyhow::Result<reqwest::Cl
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let cfg = config::read("config.toml")?;
+    let cfg = actix_web::web::Data::new(config::read("config.example.toml")?);
 
     let github_client = actix_web::web::Data::new(build_github_client(&cfg.github)?);
 
@@ -337,6 +336,7 @@ async fn main() -> anyhow::Result<()> {
         let tracing_logger = TracingLogger::<CustomRootSpanBuilder>::new();
         App::new()
             .app_data(github_client.clone())
+            .app_data(cfg.clone())
             .wrap(tracing_logger)
             .wrap(actix_web::middleware::Logger::default())
             .service(web::resource("/new-build").to(new_build))
