@@ -1,5 +1,7 @@
 use actix_web::{
+    get,
     http::header::HeaderValue,
+    post,
     web::{self, Bytes, Data},
     App, HttpRequest, HttpResponse, HttpServer,
 };
@@ -118,7 +120,8 @@ async fn build_and_upload_asset(
 }
 
 #[tracing::instrument(skip(bytes, req))]
-async fn new_build(
+#[post("/push")]
+async fn push(
     req: HttpRequest,
     bytes: Bytes,
     github_client: Data<reqwest::Client>,
@@ -180,6 +183,7 @@ async fn new_build(
 }
 
 #[tracing::instrument()]
+#[get("/ping")]
 async fn ping() -> actix_web::Result<actix_web::HttpResponse> {
     info!("ping");
 
@@ -365,11 +369,7 @@ async fn main() -> anyhow::Result<()> {
             .app_data(web_cfg.clone())
             .wrap(tracing_logger)
             .wrap(actix_web::middleware::Logger::default())
-            .service(
-                web::scope(&web_base_url)
-                    .service(web::resource("/new-build").to(new_build))
-                    .service(web::resource("/ping").to(ping)),
-            )
+            .service(web::scope(&web_base_url).service(push).service(ping))
     });
 
     for bind in &cfg.web.bind {
