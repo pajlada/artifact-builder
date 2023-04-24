@@ -296,7 +296,6 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-tls",
- "lazy_static",
  "reqwest",
  "serde",
  "serde_json",

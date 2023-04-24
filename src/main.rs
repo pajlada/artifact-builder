@@ -1,6 +1,6 @@
 use actix_web::{
     http::header::HeaderValue,
-    web::{self, Bytes},
+    web::{self, Bytes, Data},
     App, HttpRequest, HttpResponse, HttpServer,
 };
 use anyhow::{anyhow, Context};
@@ -47,21 +47,6 @@ const RELEASE_ID: u64 = 82423741;
 
 const MAIN_BRANCH_REF: &str = "refs/heads/master";
 
-lazy_static::lazy_static! {
-    static ref GITHUB_CLIENT: reqwest::Client = {
-        let token = std::env::var("GITHUB_TOKEN").expect("Must have a GITHUB_TOKEN environment variable set");
-
-        let authorization_value: String = format!("Bearer {token}");
-
-        let mut default_headers = reqwest::header::HeaderMap::new();
-        default_headers.insert("User-Agent", reqwest::header::HeaderValue::from_static(USER_AGENT));
-        default_headers.insert("Accept", reqwest::header::HeaderValue::from_static("application/vnd.github+json"));
-        default_headers.insert("Authorization", reqwest::header::HeaderValue::from_str(authorization_value.as_str()).unwrap());
-
-        reqwest::Client::builder().default_headers(default_headers).build().unwrap()
-    };
-}
-
 fn get_hub_signature(hv: Option<&HeaderValue>) -> Result<Vec<u8>, actix_web::Error> {
     match hv {
         Some(v) => {
@@ -96,7 +81,7 @@ fn validate_hub_signature(
     Ok(())
 }
 
-async fn build_and_upload_asset() -> anyhow::Result<()> {
+async fn build_and_upload_asset(github_client: Data<reqwest::Client>) -> anyhow::Result<()> {
     info!("Start build");
     let (artifact_path, asset_name) = start_build("/tmp/artifact-builder", REPO_FULL_NAME)
         .await
@@ -104,17 +89,24 @@ async fn build_and_upload_asset() -> anyhow::Result<()> {
     info!("Finished building - the build exists at {artifact_path:?}!");
 
     // 1. Delete the macOS asset if it already exists
-    let old_macos_release_asset = find_macos_asset(REPO_OWNER, REPO_NAME, RELEASE_ID, &asset_name)
-        .await
-        .context("Finding macOS asset")?;
+    let old_macos_release_asset = find_macos_asset(
+        github_client.clone(),
+        REPO_OWNER,
+        REPO_NAME,
+        RELEASE_ID,
+        &asset_name,
+    )
+    .await
+    .context("Finding macOS asset")?;
 
     if let Some(asset_id) = old_macos_release_asset {
-        delete_github_asset(REPO_OWNER, REPO_NAME, asset_id)
+        delete_github_asset(github_client.clone(), REPO_OWNER, REPO_NAME, asset_id)
             .await
             .context("Deleting macOS asset")?;
     }
 
     let release_asset = upload_asset_to_github_release(
+        github_client,
         REPO_OWNER,
         REPO_NAME,
         RELEASE_ID,
@@ -133,7 +125,11 @@ async fn build_and_upload_asset() -> anyhow::Result<()> {
 }
 
 #[tracing::instrument(skip(bytes, req))]
-async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_web::HttpResponse> {
+async fn new_build(
+    req: HttpRequest,
+    bytes: Bytes,
+    github_client: Data<reqwest::Client>,
+) -> actix_web::Result<actix_web::HttpResponse> {
     if VERIFY_GITHUB_SIGNATURE {
         let signature = get_hub_signature(req.headers().get("x-hub-signature-256"))?;
 
@@ -141,8 +137,8 @@ async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_we
     }
 
     // TODO: specify commit
-    tokio::spawn(async {
-        let res = build_and_upload_asset().await;
+    tokio::spawn(async move {
+        let res = build_and_upload_asset(github_client).await;
 
         if let Err(e) = res {
             info!("Error building/uploading asset: {e:?}");
@@ -305,15 +301,42 @@ async fn start_build(
     Ok((build_dir.join(&dmg_output), dmg_output))
 }
 
+fn build_github_client(cfg: &config::GithubConfig) -> anyhow::Result<reqwest::Client> {
+    let authorization_value: String = format!("Bearer {}", cfg.token);
+
+    let mut default_headers = reqwest::header::HeaderMap::new();
+    default_headers.insert(
+        "User-Agent",
+        reqwest::header::HeaderValue::from_static(USER_AGENT),
+    );
+    default_headers.insert(
+        "Accept",
+        reqwest::header::HeaderValue::from_static("application/vnd.github+json"),
+    );
+    default_headers.insert(
+        "Authorization",
+        reqwest::header::HeaderValue::from_str(authorization_value.as_str()).unwrap(),
+    );
+
+    let client = reqwest::Client::builder()
+        .default_headers(default_headers)
+        .build()?;
+
+    Ok(client)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let cfg = config::read("config.toml")?;
 
-    HttpServer::new(|| {
+    let github_client = actix_web::web::Data::new(build_github_client(&cfg.github)?);
+
+    HttpServer::new(move || {
         let tracing_logger = TracingLogger::<CustomRootSpanBuilder>::new();
         App::new()
+            .app_data(github_client.clone())
             .wrap(tracing_logger)
             .wrap(actix_web::middleware::Logger::default())
             .service(web::resource("/new-build").to(new_build))
@@ -326,13 +349,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn find_macos_asset(
+    github_client: Data<reqwest::Client>,
     owner: &str,
     repo: &str,
     release_id: u64,
     asset_name: &str,
 ) -> anyhow::Result<Option<u64>> {
     let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/{release_id}");
-    let res = GITHUB_CLIENT.get(url).send().await?.error_for_status()?;
+    let res = github_client.get(url).send().await?.error_for_status()?;
 
     let release: GetReleaseRoot = res.json().await?;
 
@@ -345,15 +369,21 @@ async fn find_macos_asset(
     Ok(macos_asset)
 }
 
-async fn delete_github_asset(owner: &str, repo: &str, asset_id: u64) -> anyhow::Result<()> {
+async fn delete_github_asset(
+    github_client: Data<reqwest::Client>,
+    owner: &str,
+    repo: &str,
+    asset_id: u64,
+) -> anyhow::Result<()> {
     let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}");
 
-    GITHUB_CLIENT.delete(url).send().await?.error_for_status()?;
+    github_client.delete(url).send().await?.error_for_status()?;
 
     Ok(())
 }
 
 async fn upload_asset_to_github_release(
+    github_client: Data<reqwest::Client>,
     owner: &str,
     repo: &str,
     release_id: u64,
@@ -372,7 +402,7 @@ async fn upload_asset_to_github_release(
     );
     let file = tokio::fs::File::open(path_to_file).await?;
 
-    let res: UploadReleaseAssetRoot = GITHUB_CLIENT
+    let res: UploadReleaseAssetRoot = github_client
         .post(release_upload_url)
         .header("Content-Type", "application/octet-stream")
         .header("Content-Length", file_size.to_string())
