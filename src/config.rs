@@ -12,7 +12,7 @@ pub struct BranchAndRelease {
     pub release_id: u64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct GithubConfig {
     pub token: String,
 
@@ -26,8 +26,15 @@ pub struct GithubConfig {
     pub branches: Vec<BranchAndRelease>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
+pub struct WebConfig {
+    pub bind: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    pub web: WebConfig,
+
     pub github: GithubConfig,
 }
 
@@ -42,6 +49,10 @@ verify_signature = true
         .merge(Toml::file(path))
         .extract()
         .context(format!("Error loading config from {path}"))?;
+
+    if config.web.bind.is_empty() {
+        return Err(anyhow::anyhow!("Must include at least one bind interface"));
+    }
 
     Ok(config)
 }

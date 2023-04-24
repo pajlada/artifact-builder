@@ -345,22 +345,26 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     // TODO: Add the ability to specify a custom config path
-    let cfg = actix_web::web::Data::new(config::read("config.toml")?);
+    let cfg = config::read("config.toml")?;
 
-    let github_client = actix_web::web::Data::new(build_github_client(&cfg.github)?);
+    let github_client = Data::new(build_github_client(&cfg.github)?);
+    let web_cfg = Data::new(cfg.clone());
 
-    HttpServer::new(move || {
+    let mut server = HttpServer::new(move || {
         let tracing_logger = TracingLogger::<CustomRootSpanBuilder>::new();
         App::new()
             .app_data(github_client.clone())
-            .app_data(cfg.clone())
+            .app_data(web_cfg.clone())
             .wrap(tracing_logger)
             .wrap(actix_web::middleware::Logger::default())
             .service(web::resource("/new-build").to(new_build))
-    })
-    .bind("0.0.0.0:8000")?
-    .run()
-    .await?;
+    });
+
+    for bind in &cfg.web.bind {
+        server = server.bind(bind)?
+    }
+
+    server.run().await?;
 
     Ok(())
 }
