@@ -9,7 +9,6 @@ use anyhow::{anyhow, Context};
 use git2::Repository;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use std::str::FromStr;
 use std::{
     collections::HashMap,
     ffi::OsStr,
@@ -27,13 +26,10 @@ use tracing::log::*;
 
 mod config;
 mod git;
-mod model;
+mod github;
 mod span;
 
-use crate::{
-    model::{GetReleaseRoot, UploadReleaseAssetRoot},
-    span::CustomRootSpanBuilder,
-};
+use self::span::CustomRootSpanBuilder;
 
 const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
 
@@ -84,7 +80,7 @@ async fn build_and_upload_asset(
     info!("Finished building - the build exists at {artifact_path:?}!");
 
     // 1. Delete the macOS asset if it already exists
-    let old_macos_release_asset = find_macos_asset(
+    let old_macos_release_asset = github::find_macos_asset(
         github_client.clone(),
         &repo_owner,
         &repo_name,
@@ -95,12 +91,12 @@ async fn build_and_upload_asset(
     .context("Finding macOS asset")?;
 
     if let Some(asset_id) = old_macos_release_asset {
-        delete_github_asset(github_client.clone(), &repo_owner, &repo_name, asset_id)
+        github::delete_github_asset(github_client.clone(), &repo_owner, &repo_name, asset_id)
             .await
             .context("Deleting macOS asset")?;
     }
 
-    let release_asset = upload_asset_to_github_release(
+    let release_asset = github::upload_asset_to_github_release(
         github_client,
         &repo_owner,
         &repo_name,
@@ -137,7 +133,7 @@ async fn push(
     let repo_name = cfg.github.repo_name.clone();
     let repo_full_name = format!("{}/{}", repo_owner, repo_name);
 
-    let body: model::Root =
+    let body: github::model::Root =
         serde_json::from_slice(&bytes).map_err(actix_web::error::ErrorBadRequest)?;
 
     // Figure out which release this push event should be pushed to
@@ -379,72 +375,4 @@ async fn main() -> anyhow::Result<()> {
     server.run().await?;
 
     Ok(())
-}
-
-async fn find_macos_asset(
-    github_client: Data<reqwest::Client>,
-    owner: &str,
-    repo: &str,
-    release_id: u64,
-    asset_name: &str,
-) -> anyhow::Result<Option<u64>> {
-    let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/{release_id}");
-    let res = github_client.get(url).send().await?.error_for_status()?;
-
-    let release: GetReleaseRoot = res.json().await?;
-
-    let macos_asset = release
-        .assets
-        .iter()
-        .find(|asset| asset.name == asset_name)
-        .map(|asset| asset.id);
-
-    Ok(macos_asset)
-}
-
-async fn delete_github_asset(
-    github_client: Data<reqwest::Client>,
-    owner: &str,
-    repo: &str,
-    asset_id: u64,
-) -> anyhow::Result<()> {
-    let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}");
-
-    github_client.delete(url).send().await?.error_for_status()?;
-
-    Ok(())
-}
-
-async fn upload_asset_to_github_release(
-    github_client: Data<reqwest::Client>,
-    owner: &str,
-    repo: &str,
-    release_id: u64,
-    path_to_file: PathBuf,
-    asset_name: &str,
-) -> anyhow::Result<UploadReleaseAssetRoot> {
-    let release_upload_url =
-        format!("https://uploads.github.com/repos/{owner}/{repo}/releases/{release_id}/assets");
-    let mut release_upload_url = url::Url::from_str(&release_upload_url)?;
-    release_upload_url.set_query(Some(format!("{}={}", "name", asset_name).as_str()));
-    // println!("upload_url: {}", release_upload_url);
-    let file_size = std::fs::metadata(&path_to_file)?.len();
-    println!(
-        "file_size: {}. It can take some time to upload. Wait...",
-        file_size
-    );
-    let file = tokio::fs::File::open(path_to_file).await?;
-
-    let res: UploadReleaseAssetRoot = github_client
-        .post(release_upload_url)
-        .header("Content-Type", "application/octet-stream")
-        .header("Content-Length", file_size.to_string())
-        .body(file)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
-
-    Ok(res)
 }
