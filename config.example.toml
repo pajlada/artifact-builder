@@ -6,3 +6,6 @@ token = "github_pat_asdadsasd"
 # If set to false, this will skip the webhook secret verification.
 # Only set this to false if you're doing testing with local requests to the API
 verify_signature = true
+
+# The webhook secret specified in the GitHub webhook
+secret = "webhook_secret"

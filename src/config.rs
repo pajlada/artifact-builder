@@ -11,6 +11,8 @@ pub struct GithubConfig {
     pub token: String,
 
     pub verify_signature: bool,
+
+    pub secret: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -35,7 +35,6 @@ use crate::{
 
 const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
 
-const WEBHOOK_SECRET: &[u8] = "penis123".as_bytes();
 const REPO_OWNER: &str = "pajlada";
 const REPO_NAME: &str = "chatterino2";
 const REPO_FULL_NAME: &str = const_format::formatcp!("{REPO_OWNER}/{REPO_NAME}");
@@ -65,10 +64,10 @@ fn get_hub_signature(hv: Option<&HeaderValue>) -> Result<Vec<u8>, actix_web::Err
 fn validate_hub_signature(
     hub_signature: Vec<u8>,
     bytes: &Bytes,
-    secret: &[u8],
+    secret: &str,
 ) -> Result<(), actix_web::Error> {
-    let mut hasher =
-        Hmac::<Sha256>::new_from_slice(secret).map_err(actix_web::error::ErrorBadRequest)?;
+    let mut hasher = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+        .map_err(actix_web::error::ErrorBadRequest)?;
 
     hasher.update(bytes);
 
@@ -132,7 +131,7 @@ async fn new_build(
     if cfg.github.verify_signature {
         let signature = get_hub_signature(req.headers().get("x-hub-signature-256"))?;
 
-        validate_hub_signature(signature, &bytes, WEBHOOK_SECRET)?;
+        validate_hub_signature(signature, &bytes, &cfg.github.secret)?;
     }
 
     // TODO: specify commit
