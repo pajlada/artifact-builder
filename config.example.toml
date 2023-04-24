@@ -1,4 +1,7 @@
 [web]
+# Base URL for all built-in routes
+base_url = "/"
+
 # Bind interface(s)
 bind = ["127.0.0.1:8701"]
 

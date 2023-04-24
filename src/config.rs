@@ -28,6 +28,8 @@ pub struct GithubConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct WebConfig {
+    pub base_url: String,
+
     pub bind: Vec<String>,
 }
 
@@ -40,6 +42,9 @@ pub struct Config {
 
 pub fn read(path: &str) -> Result<Config> {
     let default_config = r#"
+[web]
+base_url = "/"
+
 [github]
 verify_signature = true
 "#;

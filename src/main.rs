@@ -179,6 +179,13 @@ async fn new_build(
     Ok(HttpResponse::Ok().body("forsen"))
 }
 
+#[tracing::instrument()]
+async fn ping() -> actix_web::Result<actix_web::HttpResponse> {
+    info!("ping");
+
+    Ok(HttpResponse::Ok().body("pong"))
+}
+
 #[tracing::instrument(skip())]
 async fn run_command<Cmd>(command: Cmd, envs: Option<HashMap<&str, &str>>) -> anyhow::Result<()>
 where
@@ -349,6 +356,7 @@ async fn main() -> anyhow::Result<()> {
 
     let github_client = Data::new(build_github_client(&cfg.github)?);
     let web_cfg = Data::new(cfg.clone());
+    let web_base_url = cfg.web.base_url.clone();
 
     let mut server = HttpServer::new(move || {
         let tracing_logger = TracingLogger::<CustomRootSpanBuilder>::new();
@@ -357,7 +365,11 @@ async fn main() -> anyhow::Result<()> {
             .app_data(web_cfg.clone())
             .wrap(tracing_logger)
             .wrap(actix_web::middleware::Logger::default())
-            .service(web::resource("/new-build").to(new_build))
+            .service(
+                web::scope(&web_base_url)
+                    .service(web::resource("/new-build").to(new_build))
+                    .service(web::resource("/ping").to(ping)),
+            )
     });
 
     for bind in &cfg.web.bind {
