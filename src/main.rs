@@ -35,8 +35,6 @@ use crate::{
 
 const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
 
-const MAIN_BRANCH_REF: &str = "refs/heads/master";
-
 fn get_hub_signature(hv: Option<&HeaderValue>) -> Result<Vec<u8>, actix_web::Error> {
     match hv {
         Some(v) => {
@@ -136,28 +134,39 @@ async fn new_build(
     let repo_name = cfg.github.repo_name.clone();
     let repo_full_name = format!("{}/{}", repo_owner, repo_name);
 
-    // TODO: specify commit
-    tokio::spawn(async move {
-        let repo_owner = cfg.github.repo_owner.clone();
-        let repo_name = cfg.github.repo_name.clone();
-
-        let res =
-            build_and_upload_asset(github_client, repo_owner, repo_name, cfg.github.release_id)
-                .await;
-
-        if let Err(e) = res {
-            info!("Error building/uploading asset: {e:?}");
-        }
-    });
-
     let body: model::Root =
         serde_json::from_slice(&bytes).map_err(actix_web::error::ErrorBadRequest)?;
 
-    if body.push_ref != MAIN_BRANCH_REF {
-        return Ok(HttpResponse::Ok().body(format!(
-            "Push event is not for the main branch '{}",
-            MAIN_BRANCH_REF
-        )));
+    // Figure out which release this push event should be pushed to
+    let branch = cfg
+        .github
+        .branches
+        .iter()
+        .cloned()
+        .find(|b| body.push_ref == format!("refs/heads/{}", b.name));
+
+    match branch {
+        Some(branch) => {
+            // TODO: make sure to build, clone, push to the correct branch
+            tokio::spawn(async move {
+                let repo_owner = cfg.github.repo_owner.clone();
+                let repo_name = cfg.github.repo_name.clone();
+
+                let res =
+                    build_and_upload_asset(github_client, repo_owner, repo_name, branch.release_id)
+                        .await;
+
+                if let Err(e) = res {
+                    info!("Error building/uploading asset: {e:?}");
+                }
+            });
+        }
+        None => {
+            return Ok(HttpResponse::Ok().body(format!(
+                "No release configured for branch {}",
+                body.push_ref
+            )));
+        }
     }
 
     if body.repository.full_name != repo_full_name {

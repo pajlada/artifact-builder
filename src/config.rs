@@ -6,6 +6,12 @@ use figment::{
     Figment,
 };
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct BranchAndRelease {
+    pub name: String,
+    pub release_id: u64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct GithubConfig {
     pub token: String,
@@ -17,7 +23,7 @@ pub struct GithubConfig {
     pub repo_owner: String,
     pub repo_name: String,
 
-    pub release_id: u64,
+    pub branches: Vec<BranchAndRelease>,
 }
 
 #[derive(Debug, Deserialize)]

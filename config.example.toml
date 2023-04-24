@@ -15,5 +15,5 @@ secret = "webhook_secret"
 repo_owner = "pajlada"
 repo_name = "chatterino2"
 
-# The GitHub release ID where we want to upload the asset
-release_id = 82423741
+# List of branches & their respective releases
+branches = [ { name = "master", release_id = 82423741 } ]
