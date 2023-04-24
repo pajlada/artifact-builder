@@ -32,7 +32,7 @@ use crate::{
     span::CustomRootSpanBuilder,
 };
 
-const VERIFY_GITHUB_SIGNATURE: bool = false;
+const VERIFY_GITHUB_SIGNATURE: bool = true;
 
 const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
 
@@ -97,10 +97,9 @@ fn validate_hub_signature(
 
 async fn build_and_upload_asset() -> anyhow::Result<()> {
     info!("Start build");
-    let (artifact_path, asset_name) =
-        start_build("/tmp/artifact-builder", "Chatterino/chatterino2")
-            .await
-            .context("Failed building")?;
+    let (artifact_path, asset_name) = start_build("/tmp/artifact-builder", REPO_FULL_NAME)
+        .await
+        .context("Failed building")?;
     info!("Finished building - the build exists at {artifact_path:?}!");
 
     // 1. Delete the macOS asset if it already exists
@@ -145,7 +144,7 @@ async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_we
         let res = build_and_upload_asset().await;
 
         if let Err(e) = res {
-            info!("Error building/uploading asset: {e}");
+            info!("Error building/uploading asset: {e:?}");
         }
     });
 
@@ -170,7 +169,7 @@ async fn new_build(req: HttpRequest, bytes: Bytes) -> actix_web::Result<actix_we
 }
 
 #[tracing::instrument(skip())]
-async fn run_command<Cmd>(command: Cmd, envs: Option<HashMap<String, String>>) -> anyhow::Result<()>
+async fn run_command<Cmd>(command: Cmd, envs: Option<HashMap<&str, &str>>) -> anyhow::Result<()>
 where
     Cmd: AsRef<OsStr> + std::fmt::Debug,
 {
@@ -249,8 +248,11 @@ async fn start_build(
             {
                 let mut remote = repo.find_remote("origin")?;
                 info!("Repo remote: {:?}", remote.name());
+                dbg!(remote.url());
 
-                let fetch_commit = git::fetch(&repo, &["master"], &mut remote)?;
+                let fetch_commit = git::fetch(&repo, &mut remote)?;
+
+                // repo.merge(&[&fetch_commit], None, None)?;
 
                 git::merge(&repo, "master", fetch_commit)?;
             }
@@ -278,27 +280,28 @@ async fn start_build(
     std::fs::create_dir_all(&build_dir)?;
     std::env::set_current_dir(&build_dir)?;
 
-    let qt_version = "5.15.8";
-    let qt_dir = "/opt/homebrew/opt/qt@5";
+    let qt_version = "6.5.0";
+    let qt_dir = "/opt/qt/6.5.0/macos";
     let openssl_root_dir = "/opt/homebrew/opt/openssl@1.1";
 
     let cmake_command =
-        format!("cmake -DUSE_PRECOMPILED_HEADERS=OFF -DCMAKE_PREFIX_PATH={qt_dir} -DOPENSSL_ROOT_DIR={openssl_root_dir} ..");
+        format!("cmake -DUSE_PRECOMPILED_HEADERS=OFF -DBUILD_WITH_QT6=ON -DCMAKE_PREFIX_PATH={qt_dir} -DOPENSSL_ROOT_DIR={openssl_root_dir} ..");
 
     run_command(cmake_command, None).await?;
 
     let build_command = "make -j8";
     run_command(build_command, None).await?;
 
-    // TODO: Use codesign
     let create_dmg_command = format!("../.CI/CreateDMG.sh {qt_version}");
-    let mut envs: HashMap<String, String> = HashMap::new();
-    envs.insert("Qt5_DIR".to_string(), qt_dir.to_string());
+    let mut envs: HashMap<&str, &str> = HashMap::new();
+    envs.insert("Qt6_DIR", qt_dir);
+    envs.insert("SKIP_VENV", "1");
     run_command(create_dmg_command, Some(envs)).await?;
 
-    let dmg_output = "chatterino-macos-Qt-5.15.8.dmg";
+    // TODO: programmatically find this
+    let dmg_output = format!("chatterino-macos-Qt-{qt_version}.dmg");
 
-    Ok((build_dir.join(dmg_output), dmg_output.to_string()))
+    Ok((build_dir.join(&dmg_output), dmg_output))
 }
 
 #[tokio::main]

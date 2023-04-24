@@ -1,70 +1,27 @@
-use anyhow::anyhow;
-use git2::Repository;
+// Most code based off of https://github.com/rust-lang/git2-rs/blob/master/examples/pull.rs
 
-use std::io::Write;
+use anyhow::anyhow;
+use git2::{BranchType, Repository};
 
 #[allow(unused)]
 use tracing::log::*;
 
 pub fn fetch<'a>(
     repo: &'a git2::Repository,
-    refs: &[&str],
     remote: &'a mut git2::Remote,
 ) -> Result<git2::AnnotatedCommit<'a>, git2::Error> {
-    let mut cb = git2::RemoteCallbacks::new();
-
-    // Print out our transfer progress.
-    cb.transfer_progress(|stats| {
-        if stats.received_objects() == stats.total_objects() {
-            print!(
-                "Resolving deltas {}/{}\r",
-                stats.indexed_deltas(),
-                stats.total_deltas()
-            );
-        } else if stats.total_objects() > 0 {
-            print!(
-                "Received {}/{} objects ({}) in {} bytes\r",
-                stats.received_objects(),
-                stats.total_objects(),
-                stats.indexed_objects(),
-                stats.received_bytes()
-            );
-        }
-        std::io::stdout().flush().unwrap();
-        true
-    });
-
     let mut fo = git2::FetchOptions::new();
-    fo.remote_callbacks(cb);
-    // Always fetch all tags.
-    // Perform a download and also update tips
     fo.download_tags(git2::AutotagOption::All);
-    println!("Fetching {} for repo", remote.name().unwrap());
-    remote.fetch(refs, Some(&mut fo), None)?;
 
-    // If there are local objects (we got a thin pack), then tell the user
-    // how many objects we saved from having to cross the network.
-    let stats = remote.stats();
-    if stats.local_objects() > 0 {
-        println!(
-            "\rReceived {}/{} objects in {} bytes (used {} local \
-             objects)",
-            stats.indexed_objects(),
-            stats.total_objects(),
-            stats.received_bytes(),
-            stats.local_objects()
-        );
-    } else {
-        println!(
-            "\rReceived {}/{} objects in {} bytes",
-            stats.indexed_objects(),
-            stats.total_objects(),
-            stats.received_bytes()
-        );
-    }
+    remote.fetch(&[] as &[&str], Some(&mut fo), None)?;
 
-    let fetch_head = repo.find_reference("FETCH_HEAD")?;
-    repo.reference_to_annotated_commit(&fetch_head)
+    let local_branch = repo.find_branch("master", BranchType::Local)?;
+    let upstream_branch = local_branch.upstream()?;
+    let upstream_commit = upstream_branch.into_reference().peel_to_commit()?;
+
+    let upstream_annotated = repo.find_annotated_commit(upstream_commit.id())?;
+
+    Ok(upstream_annotated)
 }
 
 fn fast_forward(
@@ -97,6 +54,8 @@ pub fn merge<'a>(
 ) -> anyhow::Result<()> {
     // 1. do a merge analysis
     let analysis = repo.merge_analysis(&[&fetch_commit])?;
+
+    dbg!(analysis);
 
     // 2. Do the appropriate merge
     if analysis.0.is_fast_forward() {
