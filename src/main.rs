@@ -35,10 +35,6 @@ use crate::{
 
 const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
 
-const REPO_OWNER: &str = "pajlada";
-const REPO_NAME: &str = "chatterino2";
-const REPO_FULL_NAME: &str = const_format::formatcp!("{REPO_OWNER}/{REPO_NAME}");
-
 // The release we want to upload our asset to
 const RELEASE_ID: u64 = 82423741;
 
@@ -78,9 +74,13 @@ fn validate_hub_signature(
     Ok(())
 }
 
-async fn build_and_upload_asset(github_client: Data<reqwest::Client>) -> anyhow::Result<()> {
+async fn build_and_upload_asset(
+    github_client: Data<reqwest::Client>,
+    repo_owner: String,
+    repo_name: String,
+) -> anyhow::Result<()> {
     info!("Start build");
-    let (artifact_path, asset_name) = start_build("/tmp/artifact-builder", REPO_FULL_NAME)
+    let (artifact_path, asset_name) = start_build("/tmp/artifact-builder", &repo_owner, &repo_name)
         .await
         .context("Failed building")?;
     info!("Finished building - the build exists at {artifact_path:?}!");
@@ -88,8 +88,8 @@ async fn build_and_upload_asset(github_client: Data<reqwest::Client>) -> anyhow:
     // 1. Delete the macOS asset if it already exists
     let old_macos_release_asset = find_macos_asset(
         github_client.clone(),
-        REPO_OWNER,
-        REPO_NAME,
+        &repo_owner,
+        &repo_name,
         RELEASE_ID,
         &asset_name,
     )
@@ -97,15 +97,15 @@ async fn build_and_upload_asset(github_client: Data<reqwest::Client>) -> anyhow:
     .context("Finding macOS asset")?;
 
     if let Some(asset_id) = old_macos_release_asset {
-        delete_github_asset(github_client.clone(), REPO_OWNER, REPO_NAME, asset_id)
+        delete_github_asset(github_client.clone(), &repo_owner, &repo_name, asset_id)
             .await
             .context("Deleting macOS asset")?;
     }
 
     let release_asset = upload_asset_to_github_release(
         github_client,
-        REPO_OWNER,
-        REPO_NAME,
+        &repo_owner,
+        &repo_name,
         RELEASE_ID,
         artifact_path,
         &asset_name,
@@ -134,9 +134,16 @@ async fn new_build(
         validate_hub_signature(signature, &bytes, &cfg.github.secret)?;
     }
 
+    let repo_owner = cfg.github.repo_owner.clone();
+    let repo_name = cfg.github.repo_name.clone();
+    let repo_full_name = format!("{}/{}", repo_owner, repo_name);
+
     // TODO: specify commit
     tokio::spawn(async move {
-        let res = build_and_upload_asset(github_client).await;
+        let repo_owner = cfg.github.repo_owner.clone();
+        let repo_name = cfg.github.repo_name.clone();
+
+        let res = build_and_upload_asset(github_client, repo_owner, repo_name).await;
 
         if let Err(e) = res {
             info!("Error building/uploading asset: {e:?}");
@@ -153,10 +160,10 @@ async fn new_build(
         )));
     }
 
-    if body.repository.full_name != REPO_FULL_NAME {
+    if body.repository.full_name != repo_full_name {
         return Ok(HttpResponse::Ok().body(format!(
             "Push event is not for the correct repo '{}",
-            REPO_FULL_NAME
+            repo_full_name
         )));
     }
 
@@ -222,10 +229,11 @@ where
 
 async fn start_build(
     clone_dir_str: &str,
-    repo_full_name: &str,
+    repo_owner: &str,
+    repo_name: &str,
 ) -> anyhow::Result<(PathBuf, String)> {
     let clone_dir = std::path::Path::new(clone_dir_str);
-    let url = format!("https://github.com/{repo_full_name}");
+    let url = format!("https://github.com/{repo_owner}/{repo_name}");
 
     /*
     if let Err(e) = std::fs::remove_dir_all(clone_dir) {

@@ -9,3 +9,8 @@ verify_signature = true
 
 # The webhook secret specified in the GitHub webhook
 secret = "webhook_secret"
+
+# The repo to use for building, and to validate webhooks with
+# https://github.com/{repo_owner}/{repo_name}
+repo_owner = "pajlada"
+repo_name = "chatterino2"

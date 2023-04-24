@@ -13,6 +13,9 @@ pub struct GithubConfig {
     pub verify_signature: bool,
 
     pub secret: String,
+
+    pub repo_owner: String,
+    pub repo_name: String,
 }
 
 #[derive(Debug, Deserialize)]
