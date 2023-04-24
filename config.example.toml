@@ -1,0 +1,8 @@
+[github]
+# This should be a github personal access token that has access to read & write
+# github release assets in the repo you plan to run this on
+token = "github_pat_asdadsasd"
+
+# If set to false, this will skip the webhook secret verification.
+# Only set this to false if you're doing testing with local requests to the API
+verify_signature = true

@@ -23,6 +23,7 @@ use tracing_actix_web::TracingLogger;
 
 use tracing::log::*;
 
+mod config;
 mod git;
 mod model;
 mod span;
@@ -307,6 +308,8 @@ async fn start_build(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+
+    let cfg = config::read("config.toml")?;
 
     HttpServer::new(|| {
         let tracing_logger = TracingLogger::<CustomRootSpanBuilder>::new();
