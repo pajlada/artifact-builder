@@ -344,7 +344,8 @@ fn build_github_client(cfg: &config::GithubConfig) -> anyhow::Result<reqwest::Cl
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let cfg = actix_web::web::Data::new(config::read("config.example.toml")?);
+    // TODO: Add the ability to specify a custom config path
+    let cfg = actix_web::web::Data::new(config::read("config.toml")?);
 
     let github_client = actix_web::web::Data::new(build_github_client(&cfg.github)?);
 
