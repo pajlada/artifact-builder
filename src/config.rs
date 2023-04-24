@@ -16,6 +16,8 @@ pub struct GithubConfig {
 
     pub repo_owner: String,
     pub repo_name: String,
+
+    pub release_id: u64,
 }
 
 #[derive(Debug, Deserialize)]

@@ -35,9 +35,6 @@ use crate::{
 
 const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
 
-// The release we want to upload our asset to
-const RELEASE_ID: u64 = 82423741;
-
 const MAIN_BRANCH_REF: &str = "refs/heads/master";
 
 fn get_hub_signature(hv: Option<&HeaderValue>) -> Result<Vec<u8>, actix_web::Error> {
@@ -78,6 +75,7 @@ async fn build_and_upload_asset(
     github_client: Data<reqwest::Client>,
     repo_owner: String,
     repo_name: String,
+    release_id: u64,
 ) -> anyhow::Result<()> {
     info!("Start build");
     let (artifact_path, asset_name) = start_build("/tmp/artifact-builder", &repo_owner, &repo_name)
@@ -90,7 +88,7 @@ async fn build_and_upload_asset(
         github_client.clone(),
         &repo_owner,
         &repo_name,
-        RELEASE_ID,
+        release_id,
         &asset_name,
     )
     .await
@@ -106,7 +104,7 @@ async fn build_and_upload_asset(
         github_client,
         &repo_owner,
         &repo_name,
-        RELEASE_ID,
+        release_id,
         artifact_path,
         &asset_name,
     )
@@ -143,7 +141,9 @@ async fn new_build(
         let repo_owner = cfg.github.repo_owner.clone();
         let repo_name = cfg.github.repo_name.clone();
 
-        let res = build_and_upload_asset(github_client, repo_owner, repo_name).await;
+        let res =
+            build_and_upload_asset(github_client, repo_owner, repo_name, cfg.github.release_id)
+                .await;
 
         if let Err(e) = res {
             info!("Error building/uploading asset: {e:?}");
