@@ -5,9 +5,9 @@ use actix_web::{
 use tracing::{span, Level, Span};
 use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder};
 
-pub struct CustomRootSpanBuilder;
+pub struct SpanBuilder;
 
-impl RootSpanBuilder for CustomRootSpanBuilder {
+impl RootSpanBuilder for SpanBuilder {
     fn on_request_start(request: &ServiceRequest) -> Span {
         // let asd = request.version()
         let my_span = span!(Level::WARN, "forsen");

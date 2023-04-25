@@ -1,14 +1,7 @@
-use actix_web::{
-    get,
-    http::header::HeaderValue,
-    post,
-    web::{self, Bytes, Data},
-    App, HttpRequest, HttpResponse, HttpServer,
-};
+use actix_web::web::Data;
 use anyhow::{anyhow, Context};
 use git2::Repository;
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
+
 use std::{
     collections::HashMap,
     ffi::OsStr,
@@ -20,52 +13,13 @@ use tokio::{
     process::Command as TokioCommand,
 };
 use tokio_stream::StreamExt;
-use tracing_actix_web::TracingLogger;
 
 use tracing::log::*;
 
 mod config;
 mod git;
 mod github;
-mod span;
-
-use self::span::CustomRootSpanBuilder;
-
-const USER_AGENT: &str = "chatterino-macos-artifact-builder 0.1.0";
-
-fn get_hub_signature(hv: Option<&HeaderValue>) -> Result<Vec<u8>, actix_web::Error> {
-    match hv {
-        Some(v) => {
-            let val = v
-                .to_str()
-                .map_err(actix_web::error::ErrorBadRequest)?
-                .strip_prefix("sha256=")
-                .ok_or_else(|| actix_web::error::ErrorBadRequest("missing prefix"))?;
-
-            hex::decode(val).map_err(actix_web::error::ErrorBadRequest)
-        }
-        None => Err(actix_web::error::ErrorBadRequest(
-            "missing signature header",
-        )),
-    }
-}
-
-fn validate_hub_signature(
-    hub_signature: Vec<u8>,
-    bytes: &Bytes,
-    secret: &str,
-) -> Result<(), actix_web::Error> {
-    let mut hasher = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-        .map_err(actix_web::error::ErrorBadRequest)?;
-
-    hasher.update(bytes);
-
-    hasher
-        .verify_slice(&hub_signature)
-        .map_err(actix_web::error::ErrorUnauthorized)?;
-
-    Ok(())
-}
+mod web;
 
 async fn build_and_upload_asset(
     github_client: Data<reqwest::Client>,
@@ -113,77 +67,6 @@ async fn build_and_upload_asset(
     );
 
     Ok(())
-}
-
-#[tracing::instrument(skip(bytes, req))]
-#[post("/push")]
-async fn push(
-    req: HttpRequest,
-    bytes: Bytes,
-    github_client: Data<reqwest::Client>,
-    cfg: Data<config::Config>,
-) -> actix_web::Result<actix_web::HttpResponse> {
-    if cfg.github.verify_signature {
-        let signature = get_hub_signature(req.headers().get("x-hub-signature-256"))?;
-
-        validate_hub_signature(signature, &bytes, &cfg.github.secret)?;
-    }
-
-    let repo_owner = cfg.github.repo_owner.clone();
-    let repo_name = cfg.github.repo_name.clone();
-    let repo_full_name = format!("{}/{}", repo_owner, repo_name);
-
-    let body: github::model::Root =
-        serde_json::from_slice(&bytes).map_err(actix_web::error::ErrorBadRequest)?;
-
-    // Figure out which release this push event should be pushed to
-    let branch = cfg
-        .github
-        .branches
-        .iter()
-        .cloned()
-        .find(|b| body.push_ref == format!("refs/heads/{}", b.name));
-
-    match branch {
-        Some(branch) => {
-            // TODO: make sure to build, clone, push to the correct branch
-            tokio::spawn(async move {
-                let repo_owner = cfg.github.repo_owner.clone();
-                let repo_name = cfg.github.repo_name.clone();
-
-                let res =
-                    build_and_upload_asset(github_client, repo_owner, repo_name, branch.release_id)
-                        .await;
-
-                if let Err(e) = res {
-                    info!("Error building/uploading asset: {e:?}");
-                }
-            });
-        }
-        None => {
-            return Ok(HttpResponse::Ok().body(format!(
-                "No release configured for branch {}",
-                body.push_ref
-            )));
-        }
-    }
-
-    if body.repository.full_name != repo_full_name {
-        return Ok(HttpResponse::Ok().body(format!(
-            "Push event is not for the correct repo '{}",
-            repo_full_name
-        )));
-    }
-
-    Ok(HttpResponse::Ok().body("forsen"))
-}
-
-#[tracing::instrument()]
-#[get("/ping")]
-async fn ping() -> actix_web::Result<actix_web::HttpResponse> {
-    info!("ping");
-
-    Ok(HttpResponse::Ok().body("pong"))
 }
 
 #[tracing::instrument(skip())]
@@ -323,30 +206,6 @@ async fn start_build(
     Ok((build_dir.join(&dmg_output), dmg_output))
 }
 
-fn build_github_client(cfg: &config::GithubConfig) -> anyhow::Result<reqwest::Client> {
-    let authorization_value: String = format!("Bearer {}", cfg.token);
-
-    let mut default_headers = reqwest::header::HeaderMap::new();
-    default_headers.insert(
-        "User-Agent",
-        reqwest::header::HeaderValue::from_static(USER_AGENT),
-    );
-    default_headers.insert(
-        "Accept",
-        reqwest::header::HeaderValue::from_static("application/vnd.github+json"),
-    );
-    default_headers.insert(
-        "Authorization",
-        reqwest::header::HeaderValue::from_str(authorization_value.as_str()).unwrap(),
-    );
-
-    let client = reqwest::Client::builder()
-        .default_headers(default_headers)
-        .build()?;
-
-    Ok(client)
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
@@ -354,25 +213,9 @@ async fn main() -> anyhow::Result<()> {
     // TODO: Add the ability to specify a custom config path
     let cfg = config::read("config.toml")?;
 
-    let github_client = Data::new(build_github_client(&cfg.github)?);
-    let web_cfg = Data::new(cfg.clone());
-    let web_base_url = cfg.web.base_url.clone();
+    let github_client = github::client::build(&cfg.github)?;
 
-    let mut server = HttpServer::new(move || {
-        let tracing_logger = TracingLogger::<CustomRootSpanBuilder>::new();
-        App::new()
-            .app_data(github_client.clone())
-            .app_data(web_cfg.clone())
-            .wrap(tracing_logger)
-            .wrap(actix_web::middleware::Logger::default())
-            .service(web::scope(&web_base_url).service(push).service(ping))
-    });
-
-    for bind in &cfg.web.bind {
-        server = server.bind(bind)?
-    }
-
-    server.run().await?;
+    web::start_server(cfg, github_client).await?;
 
     Ok(())
 }

@@ -2,6 +2,7 @@ use actix_web::web::Data;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+pub mod client;
 pub mod model;
 
 use self::model::{GetReleaseRoot, UploadReleaseAssetRoot};
