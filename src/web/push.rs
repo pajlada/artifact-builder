@@ -14,7 +14,7 @@ use tracing::log::*;
 use crate::config;
 use crate::github;
 // TODO: this should be some worker that's passed in
-use crate::build_and_upload_asset;
+use crate::build::build_and_upload_asset;
 
 fn get_hub_signature(hv: Option<&HeaderValue>) -> Result<Vec<u8>, actix_web::Error> {
     match hv {
