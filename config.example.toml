@@ -5,6 +5,30 @@ base_url = "/"
 # Bind interface(s)
 bind = ["127.0.0.1:8701"]
 
+[build]
+repo_dir = "/tmp/artifact-builder"
+dmg_output_path = "chatterino.dmg"
+
+[build.default_config]
+cmake_args = [
+    "-DUSE_PRECOMPILED_HEADERS=OFF"
+]
+package_envs = [
+    {key = "SKIP_VENV", value = "1"},
+]
+
+[[build.configs]]
+cmake_args = [
+    "-DCMAKE_PREFIX_PATH=/opt/qt/6.5.0/macos",
+    "-DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl@1.1",
+    "-DBUILD_WITH_QT6=ON",
+]
+package_envs = [
+    {key = "Qt6_DIR", value = "/opt/qt/6.5.0/macos"},
+]
+build_dir = "build"
+asset_name = "Chatterino-Qt-6.5.0.dmg"
+
 [github]
 # This should be a github personal access token that has access to read & write
 # github release assets in the repo you plan to run this on

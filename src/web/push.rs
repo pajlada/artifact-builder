@@ -13,8 +13,6 @@ use tracing::log::*;
 
 use crate::config;
 use crate::github;
-// TODO: this should be some worker that's passed in
-use crate::build::build_and_upload_asset;
 
 fn get_hub_signature(hv: Option<&HeaderValue>) -> Result<Vec<u8>, actix_web::Error> {
     match hv {
@@ -50,13 +48,14 @@ fn validate_hub_signature(
     Ok(())
 }
 
-#[tracing::instrument(skip(bytes, req))]
+#[tracing::instrument(skip(bytes, req, cfg, pipelines))]
 #[post("/push")]
 async fn push(
     req: HttpRequest,
     bytes: Bytes,
     github_client: Data<reqwest::Client>,
     cfg: Data<config::Config>,
+    pipelines: Data<crate::build::Pipelines>,
 ) -> actix_web::Result<actix_web::HttpResponse> {
     if cfg.github.verify_signature {
         let signature = get_hub_signature(req.headers().get("x-hub-signature-256"))?;
@@ -71,44 +70,35 @@ async fn push(
     let body: github::model::Root =
         serde_json::from_slice(&bytes).map_err(actix_web::error::ErrorBadRequest)?;
 
-    // Figure out which release this push event should be pushed to
-    let branch = cfg
-        .github
-        .branches
-        .iter()
-        .cloned()
-        .find(|b| body.push_ref == format!("refs/heads/{}", b.name));
-
-    match branch {
-        Some(branch) => {
-            // TODO: make sure to build, clone, push to the correct branch
-            tokio::spawn(async move {
-                let repo_owner = cfg.github.repo_owner.clone();
-                let repo_name = cfg.github.repo_name.clone();
-
-                let res =
-                    build_and_upload_asset(github_client, repo_owner, repo_name, branch.release_id)
-                        .await;
-
-                if let Err(e) = res {
-                    info!("Error building/uploading asset: {e:?}");
-                }
-            });
-        }
-        None => {
-            return Ok(HttpResponse::Ok().body(format!(
-                "No release configured for branch {}",
-                body.push_ref
-            )));
-        }
-    }
-
     if body.repository.full_name != repo_full_name {
         return Ok(HttpResponse::Ok().body(format!(
             "Push event is not for the correct repo '{}",
             repo_full_name
         )));
     }
+
+    let stripped_branch_name = body.push_ref.strip_prefix("refs/heads/").ok_or_else(|| {
+        actix_web::error::ErrorBadRequest("push_ref doesn't start with refs/heads/")
+    })?;
+    /*
+    let pipeline = pipelines.entry(stripped_branch_name.to_string());
+    */
+    let pipelines = pipelines
+        .get(stripped_branch_name)
+        .ok_or_else(|| {
+            actix_web::error::ErrorBadRequest("No pipeline found {stripped_branch_name}")
+        })?
+        .clone();
+
+    tokio::spawn(async move {
+        for p in pipelines {
+            let res = p.build().await;
+
+            if let Err(e) = res {
+                info!("Error building/uploading asset: {e:?}");
+            }
+        }
+    });
 
     Ok(HttpResponse::Ok().body("forsen"))
 }

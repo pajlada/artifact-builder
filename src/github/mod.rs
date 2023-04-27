@@ -1,4 +1,3 @@
-use actix_web::web::Data;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -7,11 +6,13 @@ pub mod model;
 
 use self::model::{GetReleaseRoot, UploadReleaseAssetRoot};
 
+pub type Client = reqwest::Client;
+
 #[allow(unused)]
 use tracing::log::*;
 
 pub async fn find_macos_asset(
-    github_client: Data<reqwest::Client>,
+    github_client: Client,
     owner: &str,
     repo: &str,
     release_id: u64,
@@ -32,7 +33,7 @@ pub async fn find_macos_asset(
 }
 
 pub async fn delete_github_asset(
-    github_client: Data<reqwest::Client>,
+    github_client: Client,
     owner: &str,
     repo: &str,
     asset_id: u64,
@@ -45,11 +46,11 @@ pub async fn delete_github_asset(
 }
 
 pub async fn upload_asset_to_github_release(
-    github_client: Data<reqwest::Client>,
+    github_client: Client,
     owner: &str,
     repo: &str,
     release_id: u64,
-    path_to_file: PathBuf,
+    path_to_file: &PathBuf,
     asset_name: &str,
 ) -> anyhow::Result<UploadReleaseAssetRoot> {
     let release_upload_url =
@@ -57,7 +58,7 @@ pub async fn upload_asset_to_github_release(
     let mut release_upload_url = url::Url::from_str(&release_upload_url)?;
     release_upload_url.set_query(Some(format!("{}={}", "name", asset_name).as_str()));
     // println!("upload_url: {}", release_upload_url);
-    let file_size = std::fs::metadata(&path_to_file)?.len();
+    let file_size = std::fs::metadata(path_to_file)?.len();
     println!(
         "file_size: {}. It can take some time to upload. Wait...",
         file_size
