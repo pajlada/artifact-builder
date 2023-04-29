@@ -39,7 +39,7 @@ pub struct Owner {
     pub id: u64,
 
     pub name: String,
-    pub email: String,
+    pub email: Option<String>,
     pub login: String,
 }
 
