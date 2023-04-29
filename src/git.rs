@@ -55,8 +55,6 @@ pub fn merge<'a>(
     // 1. do a merge analysis
     let analysis = repo.merge_analysis(&[&fetch_commit])?;
 
-    dbg!(analysis);
-
     // 2. Do the appropriate merge
     if analysis.0.is_fast_forward() {
         println!("Doing a fast forward");

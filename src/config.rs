@@ -26,8 +26,11 @@ pub struct DefaultBuild {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Build {
+    pub pre_cmake_commands: Option<Vec<String>>,
     pub cmake_args: Vec<String>,
+    pub pre_package_commands: Option<Vec<String>>,
     pub package_envs: Vec<EnvironmentVariable>,
+    pub pre_dmg_commands: Option<Vec<String>>,
     pub build_dir: String,
     pub asset_name: String,
 }

@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use actix_web::{
     http::header::HeaderValue,
     post,
@@ -8,6 +10,7 @@ use actix_web::{
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
+use tokio::task::AbortHandle;
 #[allow(unused)]
 use tracing::log::*;
 
@@ -53,9 +56,9 @@ fn validate_hub_signature(
 async fn push(
     req: HttpRequest,
     bytes: Bytes,
-    github_client: Data<reqwest::Client>,
     cfg: Data<config::Config>,
     pipelines: Data<crate::build::Pipelines>,
+    current_job: Data<Mutex<Option<AbortHandle>>>,
 ) -> actix_web::Result<actix_web::HttpResponse> {
     if cfg.github.verify_signature {
         let signature = get_hub_signature(req.headers().get("x-hub-signature-256"))?;
@@ -78,7 +81,10 @@ async fn push(
     }
 
     let stripped_branch_name = body.push_ref.strip_prefix("refs/heads/").ok_or_else(|| {
-        actix_web::error::ErrorBadRequest("push_ref doesn't start with refs/heads/")
+        actix_web::error::ErrorBadRequest(format!(
+            "push_ref doesn't start with refs/heads/ '{}'",
+            body.push_ref
+        ))
     })?;
     /*
     let pipeline = pipelines.entry(stripped_branch_name.to_string());
@@ -90,7 +96,7 @@ async fn push(
         })?
         .clone();
 
-    tokio::spawn(async move {
+    let handle = tokio::spawn(async move {
         for p in pipelines {
             let res = p.build().await;
 
@@ -99,6 +105,15 @@ async fn push(
             }
         }
     });
+
+    let abort_handle = handle.abort_handle();
+
+    let old_abort_handle = current_job.lock().unwrap().replace(abort_handle);
+
+    if let Some(old_abort_handle) = old_abort_handle {
+        info!("Aborting old job");
+        old_abort_handle.abort();
+    }
 
     Ok(HttpResponse::Ok().body("forsen"))
 }
