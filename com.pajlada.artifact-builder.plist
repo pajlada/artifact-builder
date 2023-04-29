@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>Label</key>
+		<string>com.pajlada.artifact-builder</string>
+		<key>ProgramArguments</key>
+		<array>
+            <string>/opt/artifact-builder/bin/unlock-keychain-and-run-artifact-builder.sh</string>
+		</array>
+		<key>SessionCreate</key>
+		<true/>
+		<key>EnvironmentVariables</key>
+		<dict>
+<key>PATH</key>
+<string>/Users/pajlada/.cargo/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Users/pajlada/.local/bin:/opt/homebrew/bin:/Users/pajlada/Library/Python/3.9/bin</string>
+		</dict>
+		<key>UserName</key>
+        <string>pajlada</string>
+		<key>WorkingDirectory</key>
+        <string>/opt/artifact-builder/configs/prod</string>
+		<key>StandardOutPath</key>
+		<string>/opt/artifact-builder/logs/stdout.log</string>
+		<key>StandardErrorPath</key>
+		<string>/opt/artifact-builder/logs/stderr.log</string>
+		<key>KeepAlive</key>
+		<dict>
+			<key>SuccessfulExit</key>
+			<false/>
+		</dict>
+		<key>ThrottleInterval</key>
+		<integer>5</integer>
+	</dict>
+</plist>
