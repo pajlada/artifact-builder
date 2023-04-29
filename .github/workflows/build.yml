@@ -1,0 +1,52 @@
+---
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      matrix:
+        os: [macos]
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: hecrj/setup-rust-action@v1.4.1
+
+      - uses: Swatinem/rust-cache@v2.2.0
+        with:
+          key: ${{ runner.os }}
+
+      # same checks as with `cargo build`, but no binaries are generated at the end, saving some time.
+      - run: cargo check
+
+  check-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hecrj/setup-rust-action@v1.4.1
+        with:
+          rust-version: stable
+          components: rustfmt
+      - run: cargo fmt -- --check
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: hecrj/setup-rust-action@v1.4.1
+        with:
+          rust-version: stable
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2.2.0
+        with:
+          key: lint
+
+      - run: cargo clippy
