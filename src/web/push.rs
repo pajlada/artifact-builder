@@ -86,15 +86,20 @@ async fn push(
             body.push_ref
         ))
     })?;
-    /*
-    let pipeline = pipelines.entry(stripped_branch_name.to_string());
-    */
+
     let pipelines = pipelines
         .get(stripped_branch_name)
         .ok_or_else(|| {
             actix_web::error::ErrorBadRequest("No pipeline found {stripped_branch_name}")
         })?
         .clone();
+
+    if pipelines.is_empty() {
+        info!("No push events registered for {stripped_branch_name}");
+        return Ok(
+            HttpResponse::Ok().body(format!("The branch {stripped_branch_name} is not handled"))
+        );
+    }
 
     let handle = tokio::spawn(async move {
         for p in pipelines {
