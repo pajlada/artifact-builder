@@ -1,0 +1,50 @@
+[web]
+# Base URL for all built-in routes
+base_url = "/"
+
+# Bind interface(s)
+bind = ["127.0.0.1:8701"]
+
+[build]
+repo_dir = "/tmp/artifact-builder"
+dmg_output_path = "chatterino.dmg"
+
+[build.default_config]
+cmake_args = [
+    "-DUSE_PRECOMPILED_HEADERS=OFF"
+]
+package_envs = [
+    {key = "SKIP_VENV", value = "1"},
+]
+
+[[build.configs]]
+cmake_args = [
+    "-DCMAKE_PREFIX_PATH=/opt/qt/6.5.0/macos",
+    "-DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl@1.1",
+    "-DBUILD_WITH_QT6=ON",
+]
+package_envs = [
+    {key = "Qt6_DIR", value = "/opt/qt/6.5.0/macos"},
+]
+build_dir = "build"
+asset_name = "Chatterino-Qt-6.5.0.dmg"
+
+[github]
+# This should be a github personal access token that has access to read & write
+# github release assets in the repo you plan to run this on
+token = "github_pat_asdadsasd"
+
+# If set to false, this will skip the webhook secret verification.
+# Only set this to false if you're doing testing with local requests to the API
+verify_signature = true
+
+# The webhook secret specified in the GitHub webhook
+secret = "webhook_secret"
+
+# The repo to use for building, and to validate webhooks with
+# https://github.com/{repo_owner}/{repo_name}
+repo_owner = "pajlada"
+repo_name = "chatterino2"
+
+# List of branches & their respective releases
+branches = [ { name = "master", release_id = 82423741 } ]
