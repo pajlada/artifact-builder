@@ -10,11 +10,11 @@ pub struct SpanBuilder;
 impl RootSpanBuilder for SpanBuilder {
     fn on_request_start(request: &ServiceRequest) -> Span {
         // let asd = request.version()
-        let my_span = span!(Level::WARN, "forsen");
-
-        my_span.record(
-            "aaaaa",
-            request.connection_info().peer_addr().unwrap_or("unknown"),
+        let my_span = span!(
+            Level::WARN,
+            "request",
+            path = request.path(),
+            peer = request.connection_info().peer_addr().unwrap_or("unknown")
         );
 
         my_span
