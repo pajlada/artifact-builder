@@ -282,6 +282,8 @@ name = "artifact-builder"
 version = "0.1.0"
 dependencies = [
  "actix",
+ "actix-http",
+ "actix-service",
  "actix-web",
  "anyhow",
  "const_format",
