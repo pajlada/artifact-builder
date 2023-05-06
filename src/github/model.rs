@@ -14,8 +14,6 @@ pub struct Root {
     pub repository: Repository,
 
     pub sender: Sender,
-
-    pub head_commit: HeadCommit,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -76,18 +74,6 @@ pub struct Committer {
     pub name: String,
     pub email: String,
     pub username: String,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct HeadCommit {
-    pub id: String,
-    pub tree_id: String,
-    pub distinct: bool,
-    pub message: String,
-    pub timestamp: String,
-    pub url: String,
-    pub author: CommitAuthor,
-    pub committer: Committer,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
