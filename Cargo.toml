@@ -11,7 +11,7 @@ actix-service = "2.0.2"
 actix-web = "4.5.1"
 anyhow = "1.0.81"
 digest = "0.10.7"
-figment = { version = "0.10.14", features = ["toml"] }
+figment = { version = "0.10.15", features = ["toml"] }
 futures-util = "0.3.30"
 git2 = "0.18.2"
 hex = "0.4.3"
