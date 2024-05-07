@@ -9,7 +9,7 @@ edition = "2021"
 actix-http = "3.6.0"
 actix-service = "2.0.2"
 actix-web = "4.5.1"
-anyhow = "1.0.82"
+anyhow = "1.0.83"
 digest = "0.10.7"
 figment = { version = "0.10.18", features = ["toml"] }
 futures-util = "0.3.30"
