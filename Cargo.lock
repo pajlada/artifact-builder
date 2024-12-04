@@ -257,7 +257,7 @@ dependencies = [
  "git2",
  "hex",
  "hmac",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "hyper 0.14.27",
  "hyper-tls 0.6.0",
@@ -763,9 +763,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21b9ddb458710bc376481b842f5da65cdf31522de232c1ca8146abce2a358258"
+checksum = "f16ca2af56261c99fba8bac40a10251ce8188205a4c448fbb745a2e4daa76fea"
 dependencies = [
  "bytes",
  "fnv",
@@ -790,7 +790,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
 dependencies = [
  "bytes",
- "http 1.1.0",
+ "http 1.2.0",
 ]
 
 [[package]]
@@ -801,7 +801,7 @@ checksum = "41cb79eb393015dadd30fc252023adb0b2400a0caee0fa2a077e6e21a551e840"
 dependencies = [
  "bytes",
  "futures-util",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "pin-project-lite",
 ]
@@ -851,7 +851,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "pin-project-lite",
  "tokio",
@@ -896,7 +896,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "hyper 1.0.1",
  "pin-project-lite",
