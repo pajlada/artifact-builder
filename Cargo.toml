@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 actix-http = "3.10.0"
-actix-service = "2.0.2"
+actix-service = "2.0.3"
 actix-web = "4.10.2"
 anyhow = "1.0.97"
 digest = "0.10.7"
