@@ -3,7 +3,15 @@ name = "artifact-builder"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.bundle]
+name = "artifact-builder"
+identifier = "se.pajlada.artifact-builder"
+version = "0.1.0"
+copyright = "Copyright (c) Rasmus Karlsson 2023. All rights reserved."
+category = "Developer Tool"
+short_description = "Chatterino macOS artifact builder"
+osx_frameworks = []
+osx_url_schemes = []
 
 [dependencies]
 actix-http = "3.11.1"
