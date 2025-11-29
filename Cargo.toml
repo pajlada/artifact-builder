@@ -16,7 +16,7 @@ osx_url_schemes = []
 [dependencies]
 actix-http = "3.11.2"
 actix-service = "2.0.3"
-actix-web = "4.12.0"
+actix-web = "4.12.1"
 anyhow = "1.0.100"
 digest = "0.10.7"
 figment = { version = "0.10.19", features = ["toml"] }
