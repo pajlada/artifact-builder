@@ -28,7 +28,7 @@ pub struct Pipeline {
     // https://github.com/{repo_owner}/{repo_name}
     repo_name: String,
 
-    release_id: u64,
+    release_id: i64,
 
     pre_cmake_commands: Vec<String>,
 
@@ -180,9 +180,10 @@ impl Pipeline {
             &self.asset_name,
         )
         .await
-        .context("Finding macOS asset")?;
+        .context(format!("finding old asset with name {}", self.asset_name))?;
 
         if let Some(asset_id) = old_macos_release_asset {
+            info!("Found old release asset with ID {asset_id}");
             github::delete_github_asset(
                 self.github_client.clone(),
                 &self.repo_owner,
@@ -190,7 +191,7 @@ impl Pipeline {
                 asset_id,
             )
             .await
-            .context("Deleting macOS asset")?;
+            .context(format!("deleting old asset with name {}", self.asset_name))?;
         }
         Ok(())
     }
@@ -234,9 +235,9 @@ impl Pipeline {
 
         self.build_asset().await.context("Building asset")?;
 
-        self.delete_old_asset()
-            .await
-            .context("Deleting old asset")?;
+        if let Err(e) = self.delete_old_asset().await.context("Deleting old asset") {
+            warn!("Failed deleting old asset, upload might fail? {e:?}");
+        }
 
         self.upload_asset().await.context("Uploading asset")?;
 

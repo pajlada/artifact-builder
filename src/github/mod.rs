@@ -8,6 +8,7 @@ use self::model::{GetReleaseRoot, UploadReleaseAssetRoot};
 
 pub type Client = reqwest::Client;
 
+use anyhow::Context;
 #[allow(unused)]
 use tracing::log::*;
 
@@ -15,13 +16,21 @@ pub async fn find_macos_asset(
     github_client: Client,
     owner: &str,
     repo: &str,
-    release_id: u64,
+    release_id: i64,
     asset_name: &str,
-) -> anyhow::Result<Option<u64>> {
+) -> anyhow::Result<Option<i64>> {
     let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/{release_id}");
-    let res = github_client.get(url).send().await?.error_for_status()?;
+    let res = github_client
+        .get(url)
+        .send()
+        .await
+        .context("Making network request to github to find macos asset")?
+        .error_for_status()?;
 
-    let release: GetReleaseRoot = res.json().await?;
+    let release: GetReleaseRoot = res
+        .json()
+        .await
+        .context("Deserializing the github find macos asset response")?;
 
     let macos_asset = release
         .assets
@@ -36,7 +45,7 @@ pub async fn delete_github_asset(
     github_client: Client,
     owner: &str,
     repo: &str,
-    asset_id: u64,
+    asset_id: i64,
 ) -> anyhow::Result<()> {
     let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/assets/{asset_id}");
 
@@ -49,7 +58,7 @@ pub async fn upload_asset_to_github_release(
     github_client: Client,
     owner: &str,
     repo: &str,
-    release_id: u64,
+    release_id: i64,
     path_to_file: &PathBuf,
     asset_name: &str,
 ) -> anyhow::Result<UploadReleaseAssetRoot> {
