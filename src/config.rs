@@ -9,7 +9,7 @@ use figment::{
 #[derive(Debug, Deserialize, Clone)]
 pub struct BranchAndRelease {
     pub name: String,
-    pub release_id: u64,
+    pub release_id: i64,
 }
 
 #[derive(Debug, Deserialize, Clone)]
