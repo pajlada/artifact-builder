@@ -28,7 +28,7 @@ http = "1.4.0"
 http-body = "1.0.1"
 hyper = { version = "0.14.32", features = ["stream"] }
 hyper-tls = "0.6.0"
-reqwest = { version = "0.12.26", features = ["stream", "json"] }
+reqwest = { version = "0.12.28", features = ["stream", "json"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.147"
 sha2 = "0.10.9"
