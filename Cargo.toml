@@ -30,7 +30,7 @@ hyper = { version = "0.14.32", features = ["stream"] }
 hyper-tls = "0.6.0"
 reqwest = { version = "0.13.1", features = ["stream", "json"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.148"
+serde_json = "1.0.149"
 sha2 = "0.10.9"
 tokio = { version = "1.49.0", features = ["full"] }
 tokio-stream = { version = "0.1.18", features = ["io-util"] }
