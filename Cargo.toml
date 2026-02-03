@@ -21,7 +21,7 @@ anyhow = "1.0.100"
 digest = "0.10.7"
 figment = { version = "0.10.19", features = ["toml"] }
 futures-util = "0.3.31"
-git2 = "0.20.3"
+git2 = "0.20.4"
 hex = "0.4.3"
 hmac = "0.12.1"
 http = "1.4.0"
