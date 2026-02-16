@@ -20,7 +20,7 @@ actix-web = "4.12.1"
 anyhow = "1.0.101"
 digest = "0.11.0"
 figment = { version = "0.10.19", features = ["toml"] }
-futures-util = "0.3.31"
+futures-util = "0.3.32"
 git2 = "0.20.4"
 hex = "0.4.3"
 hmac = "0.12.1"
