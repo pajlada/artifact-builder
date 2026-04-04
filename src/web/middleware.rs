@@ -9,7 +9,7 @@ use actix_web::{
     web::Bytes,
 };
 use futures_util::{future::LocalBoxFuture, FutureExt};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use tracing::log::*;
