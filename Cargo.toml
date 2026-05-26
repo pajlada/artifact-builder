@@ -24,7 +24,7 @@ futures-util = "0.3.32"
 git2 = "0.21.0"
 hex = "0.4.3"
 hmac = "0.13.0"
-http = "1.4.0"
+http = "1.4.1"
 http-body = "1.0.1"
 hyper = { version = "0.14.32", features = ["stream"] }
 hyper-tls = "0.6.0"
